@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>YOLOv8 Object Detection</title>
+    <style>
+        canvas {
+            display: block;
+            border: 1px solid black;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <input id="uploadInput" type="file" />
+    <button id="analyzeBtn">Analyze</button>
+    <canvas></canvas>
+    <img id="resultImage" style="display: none;" />
+    <script>
+        const input = document.getElementById("uploadInput");
+        const analyzeBtn = document.getElementById("analyzeBtn");
+        let detectionResults = [];
+
+        input.addEventListener("change", async (event) => {
+            const file = event.target.files[0];
+            const data = new FormData();
+            data.append("image_file", file, "image_file");
+            const response = await fetch("/detect", {
+                method: "post",
+                body: data
+            });
+            detectionResults = await response.json();
+            draw_image_and_boxes(file, detectionResults);
+        });
+
+        analyzeBtn.addEventListener("click", async () => {
+            const response = await fetch("/analyze", {
+                method: "post",
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ detection_results: detectionResults })
+            });
+            const result = await response.json();
+            const resultImage = document.getElementById("resultImage");
+            resultImage.src = result.file_name + '.png';
+            resultImage.style.display = 'block';
+        });
+
+        function draw_image_and_boxes(file, boxes) {
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.onload = () => {
+                const canvas = document.querySelector("canvas");
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0);
+                ctx.strokeStyle = "#00FF00";
+                ctx.lineWidth = 3;
+                ctx.font = "18px serif";
+                boxes.forEach(([x1, y1, x2, y2, label]) => {
+                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                    ctx.fillStyle = "#00ff00";
+                    const width = ctx.measureText(label).width;
+                    ctx.fillRect(x1, y1, width + 10, 25);
+                    ctx.fillStyle = "#000000";
+                    ctx.fillText(label, x1, y1 + 18);
+                });
+            };
+        }
+    </script>
+</body>
+</html>
