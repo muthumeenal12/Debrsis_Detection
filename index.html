@@ -9,42 +9,67 @@
             border: 1px solid black;
             margin-top: 10px;
         }
+        #resultImage {
+            display: block;
+            margin-top: 10px;
+        }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <input id="uploadInput" type="file" />
-    <button id="analyzeBtn">Analyze</button>
+    <h1>YOLOv8 Object Detection</h1>
+    <input id="uploadInput" type="file" accept="image/*" />
+    <button id="analyzeBtn" class="hidden">Analyze</button>
     <canvas></canvas>
-    <img id="resultImage" style="display: none;" />
+    <img id="resultImage" class="hidden" />
+    <p id="statusMessage"></p>
     <script>
         const input = document.getElementById("uploadInput");
         const analyzeBtn = document.getElementById("analyzeBtn");
+        const resultImage = document.getElementById("resultImage");
+        const statusMessage = document.getElementById("statusMessage");
         let detectionResults = [];
 
         input.addEventListener("change", async (event) => {
             const file = event.target.files[0];
-            const data = new FormData();
-            data.append("image_file", file, "image_file");
-            const response = await fetch("/detect", {
-                method: "post",
-                body: data
-            });
-            detectionResults = await response.json();
-            draw_image_and_boxes(file, detectionResults);
+            if (file) {
+                const data = new FormData();
+                data.append("image_file", file, "image_file");
+                try {
+                    const response = await fetch("/detect", {
+                        method: "POST",
+                        body: data
+                    });
+                    if (!response.ok) throw new Error("Detection failed");
+                    detectionResults = await response.json();
+                    draw_image_and_boxes(file, detectionResults);
+                    analyzeBtn.classList.remove("hidden");
+                } catch (error) {
+                    statusMessage.textContent = "Error: " + error.message;
+                }
+            }
         });
 
         analyzeBtn.addEventListener("click", async () => {
-            const response = await fetch("/analyze", {
-                method: "post",
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ detection_results: detectionResults })
-            });
-            const result = await response.json();
-            const resultImage = document.getElementById("resultImage");
-            resultImage.src = result.file_name + '.png';
-            resultImage.style.display = 'block';
+            try {
+                statusMessage.textContent = "Analyzing...";
+                const response = await fetch("/analyze", {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ detection_results: detectionResults })
+                });
+                if (!response.ok) throw new Error("Analysis failed");
+                const result = await response.json();
+                resultImage.src = result.file_name + '.png';
+                resultImage.classList.remove("hidden");
+                statusMessage.textContent = "Analysis complete.";
+            } catch (error) {
+                statusMessage.textContent = "Error: " + error.message;
+            }
         });
 
         function draw_image_and_boxes(file, boxes) {
@@ -63,9 +88,9 @@
                     ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
                     ctx.fillStyle = "#00ff00";
                     const width = ctx.measureText(label).width;
-                    ctx.fillRect(x1, y1, width + 10, 25);
+                    ctx.fillRect(x1, y1 - 20, width + 10, 25);
                     ctx.fillStyle = "#000000";
-                    ctx.fillText(label, x1, y1 + 18);
+                    ctx.fillText(label, x1, y1 - 5);
                 });
             };
         }
